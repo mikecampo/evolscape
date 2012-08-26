@@ -13,7 +13,7 @@ LEVEL_PATH = DATA_PATH + "levels"
 
 # Time
 MAX_DELTA = 0.1 # Dt can be a max of 0.1 seconds
-SLOW_MOTION_RATIO = 1
+SLOW_MOTION_RATIO = 6
 
 # Rendering
 SCALE = 1

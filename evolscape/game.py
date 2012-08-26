@@ -2,33 +2,33 @@
 # -*- coding: utf-8 -*-
 import os.path
 import pygame
-import pygame.locals as pgl
+from pygame.locals import *
 
 import config
+from event import Event
+from screen import *
 from image_cache import ImageCache
 
 
-class Game(object):
+class Game(Event):
     LEFT_MOUSE = 1
     MIDDLE_MOUSE = 2
     RIGHT_MOUSE = 3
 
     def __init__(self):
-        background_fill = (255, 255, 255)
+        background_fill = (0, 0, 0)
         self.w, self.h = config.WINDOW_WIDTH, config.WINDOW_HEIGHT
         size = (self.w, self.h)
 
         self.running = False
         self.clock = pygame.time.Clock() 
         self.screen_size = size
-        self.fps = 0
-        self.oldTime = 0
-        self.elapsedTime = 0
+        self.slowmo = False
 
         # Create the window
         pygame.init()
-        self.screen = pygame.display.set_mode(size)
-        self.screen.fill(background_fill)
+        self.window = pygame.display.set_mode(size)
+        self.window.fill(background_fill)
         pygame.display.flip()
 
         self.image_cache = ImageCache()
@@ -36,97 +36,85 @@ class Game(object):
 
     def _setup(self):
         self._load_resources()
-        self._load_level('test', 'test.txt')
         # Sprite container
         self.sprites = pygame.sprite.RenderUpdates()
+        self.set_screen(GameScreen(self))
 
     def _load_resources(self):
         self.image_cache.add('sprites', os.path.join(config.TILESET_PATH, 'sprites.png'))
-    
-    def _load_level(self, name, filename):
-        pass
-        
-    def handle_events(self):
-        for event in pygame.event.get():
-            if event.type == pgl.QUIT:
-                self.running = False
-            elif event.type == pgl.KEYDOWN:
-                self.key_down(event.key)
-            elif event.type == pgl.KEYUP:
-                if event.key == pgl.K_ESCAPE:
-                    self.running = False
-                self.key_up(event.key)
-            elif event.type == pgl.MOUSEBUTTONDOWN:
-                self.mouse_down(event.button, event.pos)
-            elif event.type == pgl.MOUSEBUTTONUP:
-                self.mouse_up(event.button, event.pos)
-            elif event.type == pgl.MOUSEMOTION:
-                self.mouse_motion(event.buttons, event.pos, event.rel)
-    
-    def wait_for_key(self):
-        press = False
-        while not press:
-            for event in pygame.event.get():
-                if event.type == pgl.KEYUP:
-                    press = True
-                    
-    def key_pressed(self, key):
-        keys = pygame.key.get_pressed()
-        return keys[key]
-
-    def key_down(self, key):
-        pass
-        
-    def key_up(self, key):
-        pass
-    
-    def mouse_down(self, button, pos):
-        pass
-
-    def mouse_up(self, button, pos):
-        pass
-        
-    def mouse_motion(self, buttons, pos, rel):
-        pass
 
     def check_inputs(self):
-        pass
-      
+        """Go through the event queue and fire off callbacks based on the inputs"""
+        for event in pygame.event.get():
+            self.handle_event(event)
+
+    def set_screen(self, screen):
+        if hasattr(self, 'screen'):
+            self.screen.hide()
+        self.screen = screen
+        self.screen.show()
+
     def update(self, dt):
-        self.check_inputs()
+        self.screen.update(dt)
 
-    def draw(self):
-        # todo: create a level and return a background surface
-        # self.sprites.clear(self.screen, self.background)
-        pygame.display.update(self.sprites.draw(self.screen))
+    def draw(self, dt):
+        self.sprites.clear(self.window, self.screen.get_background()) 
+        self.screen.draw(dt)
+        pygame.display.update(self.sprites.draw(self.window))
 
-    def main_loop(self, fps_cap=30):
+    def main_loop(self):
         self.running = True
-        self.fps = fps_cap
-        
+        self.playtime = 0
+        max_fps = 60
+        accum_dt = 0
+
         while self.running:
-            currentTime = pygame.time.get_ticks() / 1000.0
-            delta = currentTime - self.oldTime
-            self.oldTime = currentTime
+            dt = min(self.clock.tick_busy_loop(max_fps) * 0.001, 0.1)  
+            
+            seconds = pygame.time.get_ticks() / 1000.0
+            self.playtime = seconds
 
-            # Slow-mo?
-            # delta /= config.SLOW_MOTION_RATIO
-            self.elapsedTime += delta
+            pygame.display.set_caption("FPS: %.2f" % self.clock.get_fps())
+    
+            self.check_inputs()
 
-            num_iterations = int(delta / config.MAX_DELTA) + 1 
-            if num_iterations != 0:
-                delta /= num_iterations
+            if self.slowmo:
+                dt /= 3
 
-            pygame.display.set_caption("FPS: %i" % self.clock.get_fps())
-            self.handle_events()
+            accum_dt += dt
+            while accum_dt > 0:
+                dt = 0.01
+                accum_dt -= dt
+                self.update(dt)
 
-            for i in xrange(num_iterations):
-                self.update(delta)
-
-            self.draw()
+            self.draw(dt)
             pygame.display.flip()
-            self.clock.tick(self.fps)
+
+    # Events
+    def on_exit(self):
+        self.running = False
+
+    def on_key_up(self, event):
+        if event.key == K_ESCAPE:
+            self.on_exit()
+
+    def on_key_down(self, event):
+        key = event.key
+
+        if key == K_s:
+            self.slowmo = True
+        else:
+            self.slowmo = False
+         
+    def on_mouse_lbtn_down(self, event):
+        pos = event.pos
+
+    def on_mouse_rbtn_up(self, event):
+        pos = event.pos
         
+    def on_mouse_motion(self, event):
+        buttons, pos, rel = event.buttons, event.pos, event.rel
+
 
 if __name__ == '__main__':
     game = Game()
